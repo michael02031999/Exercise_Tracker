@@ -20,31 +20,41 @@ mongoose.connect("mongodb+srv://michaelgalan:ILoveFriend@exercisedata.wculdst.mo
 console.log(mongoose.connection.readyState);
 
 
-const exerciseSchema = new mongoose.Schema({
-  userId: {type: String, required: true}, 
+const exerciseSchema = new mongoose.Schema({ 
   username: String, 
   description: String, 
   duration: Number, 
   date: String,
-  _id: {
-    type: mongoose.Schema.Types.ObjectId,
-    index: true,
-    required: true,
-    auto: true,
-  }              
-}, {versionKey: false})
+  userID: String
+},{versionKey:false})
+
+//,{versionKey:false}
 
 const user_Schema = new mongoose.Schema({
   username: String,
 })
 
+const log_Schema = new mongoose.Schema({
+  username: String, 
+  count: Number,  
+  log: [{
+    description: String, 
+    duration: Number, 
+    date: String,
+    _id: false,
+  }]
+})
+
 const User = mongoose.model("User", user_Schema)
-
-
 
 const Exercise = mongoose.model("Exercise", exerciseSchema)
 
-app.post("/api/users", (req, res) => {
+const Log = mongoose.model("Log_Exercise", log_Schema)
+
+app.post("/api/users", async (req, res) => {
+
+  //await User.deleteMany();
+
   let name = req.body.username
   //console.log(name);
   run()
@@ -71,7 +81,7 @@ app.get("/api/users", async (req, res) => {
 })
 
 app.post("/api/users/:id/exercises", async (req, res) => {
-  await Exercise.deleteMany();
+  //await Exercise.deleteMany();
 
   try {
     const realID = req.params.id
@@ -79,41 +89,98 @@ app.post("/api/users/:id/exercises", async (req, res) => {
     const duration = req.body.duration
     let date = req.body.date
 
-    //console.log(date);
-    //console.log(new Date(date));
-    date = new Date(date).toDateString()
-
-    //date = date.toDateString() 
-
     if (req.body.date ==  "" || req.body.date == undefined) {
       date = new Date().toDateString() ;
-    };
+    }
+    else {
+      date = new Date(date).toDateString()
+    }
 
   let updatedDate = date
 
   let updatedUser = await User.findOne({ _id: realID })
 
-  console.log(updatedUser);
-
-  const firstExercise = new Exercise({
-    userId: realID, 
+  const firstExercise = new Exercise({ 
     username: updatedUser.username,
     description: description, 
     duration: duration, 
-    date: updatedDate
+    date: updatedDate,
+    userID: realID,
   })
 
   await firstExercise.save();
 
-  console.log(firstExercise);
-
-  return res.json(firstExercise);
+  res.send({
+    username: updatedUser.username, 
+    description: description, 
+    duration: duration, 
+    date: updatedDate,
+    _id: realID
+  })
   }
   catch(err) {    
     console.log(err);
     return res.json({"hello": "motherfucker"})
   }
   
+})
+
+app.get('/api/users/:_id/logs', async (req, res) => {
+
+  const from = req.query.from;
+  const to = req.query.to;
+  const limit = req.query.limit;
+
+  console.log(from);
+  console.log(to);
+
+
+
+  const realID = req.params._id
+
+  let updatedUser = await User.findOne({ _id: realID })
+
+  const results = await Exercise.find({ userID : realID}).limit(limit || 500)
+
+  console.log("TESTING");
+  console.log(results);
+  console.log("TESTING");
+
+  const updatedArray = results.map((exercise) => {
+    //console.log(exercise);
+    return {description: exercise.description, duration: exercise.duration, date: exercise.date}
+  })
+
+  console.log("This should clarify things");
+  console.log(updatedArray)
+
+  if (results.length !== 0) {
+    const firstLog = new Log({
+      username: results[0].username,
+      count: results.length,
+      log: updatedArray
+    }) 
+  
+    await firstLog.save();
+  
+    return res.json(firstLog)
+  }
+  else {
+    const secondLog = new Log({
+      username: updatedUser.username,
+      count: 0,
+      log:[]
+    })
+
+    await secondLog.save()
+
+    return res.json(secondLog)
+  }
+
+  
+
+  
+
 })
 
 
